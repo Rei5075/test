@@ -1,155 +1,169 @@
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
     <meta charset="UTF-8">
-    <!-- ビューポートの設定：モバイルデバイスでの表示を最適化 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>シンプルTODO</title>
+    <title>ITパスポート問題作成TODOリスト</title>
     <style>
-        /* フォームの上下に余白を追加 */
-        .todo-form {
-            margin: 1rem 0;
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
         }
-
-        /* 完了したTODOのスタイル：取り消し線と薄い色 */
-        .completed {
-            text-decoration: line-through;
-            color: gray;
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .todo-form {
+            margin: 20px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .todo-form input, .todo-form textarea {
+            width: 70%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .todo-form button {
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .todo-form button:hover {
+            background-color: #0056b3;
+        }
+        .search-bar {
+            margin: 20px;
+            text-align: center;
+        }
+        .search-bar input {
+            width: 70%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        li span {
+            display: block;
+        }
+        .question-category {
+            font-weight: bold;
         }
     </style>
 </head>
-
 <body>
-    <h1>TODOリスト</h1>
+    <h1>ITパスポート問題作成TODOリスト</h1>
 
-    <!-- TODOを追加するためのフォーム -->
-    <form id="todoForm" class="todo-form">
-        <input type="text" id="todoInput" placeholder="新しいTODOを入力..." required>
-        <button type="submit">追加</button>
-    </form>
+    <div class="todo-form">
+        <input type="text" id="questionCategory" placeholder="カテゴリ (例: ストラテジ系)" required>
+        <textarea id="questionContent" placeholder="問題内容" rows="3" required></textarea>
+        <input type="text" id="option1" placeholder="選択肢1" required>
+        <input type="text" id="option2" placeholder="選択肢2" required>
+        <input type="text" id="option3" placeholder="選択肢3" required>
+        <input type="text" id="option4" placeholder="選択肢4" required>
+        <input type="number" id="correctAnswer" placeholder="正解番号 (1-4)" min="1" max="4" required>
+        <button onclick="addQuestion()">問題を追加</button>
+    </div>
 
-    <!-- TODOリストを表示する場所 -->
-    <ul id="todoList"></ul>
+    <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="問題を検索..." onkeyup="searchQuestions()">
+    </div>
+
+    <ul id="questionList"></ul>
 
     <script>
-        // APIサーバーのベースURL
-        const API_URL = '/todos';
+        const questions = [];
 
-        /**
-         * APIとの通信を行う汎用関数
-         * @param {string} endpoint - APIのエンドポイント
-         * @param {Object} options - fetchのオプション（メソッド、ヘッダーなど）
-         * @returns {Promise} APIからのレスポンス
-         */
-        async function api(endpoint, options = {}) {
-            try {
-                const response = await fetch(endpoint, options);
-                if (!response.ok) throw new Error('API error');
-                return response.json();
-            } catch (error) {
-                alert('エラーが発生しました');
-                console.error(error);
+        function addQuestion() {
+            const category = document.getElementById('questionCategory').value.trim();
+            const content = document.getElementById('questionContent').value.trim();
+            const options = [
+                document.getElementById('option1').value.trim(),
+                document.getElementById('option2').value.trim(),
+                document.getElementById('option3').value.trim(),
+                document.getElementById('option4').value.trim()
+            ];
+            const correct = parseInt(document.getElementById('correctAnswer').value.trim(), 10);
+
+            if (!category || !content || options.some(option => !option) || isNaN(correct) || correct < 1 || correct > 4) {
+                alert('すべての項目を正しく入力してください。');
+                return;
             }
+
+            const question = { category, content, options, correct };
+            questions.push(question);
+            renderQuestions();
+
+            document.getElementById('questionCategory').value = '';
+            document.getElementById('questionContent').value = '';
+            document.getElementById('option1').value = '';
+            document.getElementById('option2').value = '';
+            document.getElementById('option3').value = '';
+            document.getElementById('option4').value = '';
+            document.getElementById('correctAnswer').value = '';
         }
 
-        /**
-         * 1つのTODOアイテムのHTMLを生成
-         * @param {Object} todo - TODOオブジェクト（id, title, completedを含む）
-         * @returns {string} TODOアイテムのHTML文字列
-         */
-        function renderTodo(todo) {
-            return `
-                <li>
-                    <input type="checkbox" 
-                           ${todo.completed ? 'checked' : ''} 
-                           onchange="toggleTodo(${todo.id}, this.checked)">
-                    <span class="${todo.completed ? 'completed' : ''}">${todo.title}</span>
-                    <button onclick="deleteTodo(${todo.id})">削除</button>
-                </li>
-            `;
-        }
-
-        /**
-         * すべてのTODOを読み込んでページに表示
-         */
-        async function loadTodos() {
-            // APIからTODOリストを取得
-            const todos = await api(API_URL);
-            if (todos) {
-                // 取得したTODOをHTMLに変換して表示
-                document.getElementById('todoList').innerHTML =
-                    todos.map(renderTodo).join('');
-            }
-        }
-
-        /**
-         * 新しいTODOを追加
-         * @param {string} title - 新しいTODOのタイトル
-         */
-        async function addTodo(title) {
-            // POSTリクエストでTODOを追加
-            await api(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, completed: false })
+        function renderQuestions() {
+            const list = document.getElementById('questionList');
+            list.innerHTML = '';
+            questions.forEach((question, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span class="question-category">カテゴリ: ${question.category}</span>
+                    <span>問題: ${question.content}</span>
+                    <span>選択肢:</span>
+                    <ul>
+                        <li>1. ${question.options[0]}</li>
+                        <li>2. ${question.options[1]}</li>
+                        <li>3. ${question.options[2]}</li>
+                        <li>4. ${question.options[3]}</li>
+                    </ul>
+                    <span>正解: ${question.correct}</span>
+                `;
+                list.appendChild(li);
             });
-            // リストを再読み込みして表示を更新
-            loadTodos();
         }
 
-        /**
-         * TODOの完了状態を切り替え
-         * @param {number} id - TODOのID
-         * @param {boolean} completed - 新しい完了状態
-         */
-        async function toggleTodo(id, completed) {
-            // 現在のTODO情報を取得
-            const todo = await api(`${API_URL}/${id}`);
-            if (todo) {
-                // PUTリクエストでTODOを更新
-                await api(`${API_URL}/${id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ...todo, completed })
-                });
-                // リストを再読み込みして表示を更新
-                loadTodos();
-            }
-        }
+        function searchQuestions() {
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+            const filteredQuestions = questions.filter(q => 
+                q.category.toLowerCase().includes(query) || 
+                q.content.toLowerCase().includes(query) || 
+                q.options.some(option => option.toLowerCase().includes(query))
+            );
 
-        /**
-         * TODOを削除
-         * @param {number} id - 削除するTODOのID
-         */
-        async function deleteTodo(id) {
-            // DELETEリクエストでTODOを削除
-            await api(`${API_URL}/${id}`, { method: 'DELETE' });
-            // リストを再読み込みして表示を更新
-            loadTodos();
-        }
-
-        // ページ読み込み完了時の処理
-        document.addEventListener('DOMContentLoaded', () => {
-            // 初期表示としてTODOリストを読み込む
-            loadTodos();
-
-            // フォームの送信イベントを処理
-            document.getElementById('todoForm').addEventListener('submit', e => {
-                // フォームのデフォルトの送信動作を防止
-                e.preventDefault();
-                // 入力されたテキストを取得
-                const input = document.getElementById('todoInput');
-                const title = input.value.trim();
-                // テキストが入力されている場合のみTODOを追加
-                if (title) {
-                    addTodo(title);
-                    // 入力フィールドをクリア
-                    input.value = '';
-                }
+            const list = document.getElementById('questionList');
+            list.innerHTML = '';
+            filteredQuestions.forEach((question, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span class="question-category">カテゴリ: ${question.category}</span>
+                    <span>問題: ${question.content}</span>
+                    <span>選択肢:</span>
+                    <ul>
+                        <li>1. ${question.options[0]}</li>
+                        <li>2. ${question.options[1]}</li>
+                        <li>3. ${question.options[2]}</li>
+                        <li>4. ${question.options[3]}</li>
+                    </ul>
+                    <span>正解: ${question.correct}</span>
+                `;
+                list.appendChild(li);
             });
-        });
+        }
     </script>
 </body>
-
 </html>
