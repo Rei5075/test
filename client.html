@@ -16,16 +16,26 @@
         }
         .todo-form {
             margin: 20px 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            background-color: #f9f9f9;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
         }
-        .todo-form input, .todo-form textarea {
-            width: 70%;
+        .todo-form label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .todo-form select, .todo-form textarea, .todo-form input {
+            width: 100%;
             padding: 10px;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
             border: 1px solid #ccc;
             border-radius: 5px;
+            box-sizing: border-box;
         }
         .todo-form button {
             padding: 10px 20px;
@@ -34,33 +44,41 @@
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            font-size: 16px;
         }
         .todo-form button:hover {
             background-color: #0056b3;
         }
         .search-bar {
-            margin: 20px;
+            margin: 20px auto;
             text-align: center;
+            max-width: 600px;
         }
         .search-bar input {
-            width: 70%;
+            width: 100%;
             padding: 10px;
             border: 1px solid #ccc;
             border-radius: 5px;
+            box-sizing: border-box;
         }
         ul {
             list-style: none;
             padding: 0;
+            max-width: 600px;
+            margin: 20px auto;
         }
         li {
-            padding: 10px;
-            border-bottom: 1px solid #ddd;
-        }
-        li span {
-            display: block;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
         .question-category {
             font-weight: bold;
+            margin-bottom: 10px;
+            color: #555;
         }
     </style>
 </head>
@@ -68,13 +86,32 @@
     <h1>ITパスポート問題作成TODOリスト</h1>
 
     <div class="todo-form">
-        <input type="text" id="questionCategory" placeholder="カテゴリ (例: ストラテジ系)" required>
-        <textarea id="questionContent" placeholder="問題内容" rows="3" required></textarea>
+        <label for="questionCategory">カテゴリ</label>
+        <select id="questionCategory" required>
+            <option value="" disabled selected>カテゴリを選択</option>
+            <option value="ストラテジ系">ストラテジ系</option>
+            <option value="マネジメント系">マネジメント系</option>
+            <option value="テクノロジ系">テクノロジ系</option>
+        </select>
+
+        <label for="questionContent">問題内容</label>
+        <textarea id="questionContent" placeholder="問題内容を入力してください" rows="3" required></textarea>
+
+        <label for="option1">選択肢1</label>
         <input type="text" id="option1" placeholder="選択肢1" required>
+
+        <label for="option2">選択肢2</label>
         <input type="text" id="option2" placeholder="選択肢2" required>
+
+        <label for="option3">選択肢3</label>
         <input type="text" id="option3" placeholder="選択肢3" required>
+
+        <label for="option4">選択肢4</label>
         <input type="text" id="option4" placeholder="選択肢4" required>
+
+        <label for="correctAnswer">正解番号</label>
         <input type="number" id="correctAnswer" placeholder="正解番号 (1-4)" min="1" max="4" required>
+
         <button onclick="addQuestion()">問題を追加</button>
     </div>
 
@@ -85,9 +122,17 @@
     <ul id="questionList"></ul>
 
     <script>
-        const questions = [];
+        async function fetchQuestions() {
+            const response = await fetch('https://urban-garbanzo-jx9jw6g67xxhp4vp-8000.app.github.dev/');
+            if (response.ok) {
+                const questions = await response.json();
+                renderQuestions(questions);
+            } else {
+                console.error('Failed to fetch questions');
+            }
+        }
 
-        function addQuestion() {
+        async function addQuestion() {
             const category = document.getElementById('questionCategory').value.trim();
             const content = document.getElementById('questionContent').value.trim();
             const options = [
@@ -104,66 +149,35 @@
             }
 
             const question = { category, content, options, correct };
-            questions.push(question);
-            renderQuestions();
 
-            document.getElementById('questionCategory').value = '';
-            document.getElementById('questionContent').value = '';
-            document.getElementById('option1').value = '';
-            document.getElementById('option2').value = '';
-            document.getElementById('option3').value = '';
-            document.getElementById('option4').value = '';
-            document.getElementById('correctAnswer').value = '';
+            const response = await fetch('https://urban-garbanzo-jx9jw6g67xxhp4vp-8000.app.github.dev/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(question)
+            });
+
+            if (response.ok) {
+                fetchQuestions();
+                alert('問題が追加されました！');
+            } else {
+                alert('問題の追加に失敗しました。');
+            }
         }
 
-        function renderQuestions() {
+        function renderQuestions(questions) {
             const list = document.getElementById('questionList');
             list.innerHTML = '';
-            questions.forEach((question, index) => {
+            questions.forEach((question) => {
                 const li = document.createElement('li');
                 li.innerHTML = `
-                    <span class="question-category">カテゴリ: ${question.category}</span>
+                    <span class="question-category">カテゴリ: ${question.category}</span><br>
                     <span>問題: ${question.content}</span>
-                    <span>選択肢:</span>
-                    <ul>
-                        <li>1. ${question.options[0]}</li>
-                        <li>2. ${question.options[1]}</li>
-                        <li>3. ${question.options[2]}</li>
-                        <li>4. ${question.options[3]}</li>
-                    </ul>
-                    <span>正解: ${question.correct}</span>
                 `;
                 list.appendChild(li);
             });
         }
 
-        function searchQuestions() {
-            const query = document.getElementById('searchInput').value.trim().toLowerCase();
-            const filteredQuestions = questions.filter(q => 
-                q.category.toLowerCase().includes(query) || 
-                q.content.toLowerCase().includes(query) || 
-                q.options.some(option => option.toLowerCase().includes(query))
-            );
-
-            const list = document.getElementById('questionList');
-            list.innerHTML = '';
-            filteredQuestions.forEach((question, index) => {
-                const li = document.createElement('li');
-                li.innerHTML = `
-                    <span class="question-category">カテゴリ: ${question.category}</span>
-                    <span>問題: ${question.content}</span>
-                    <span>選択肢:</span>
-                    <ul>
-                        <li>1. ${question.options[0]}</li>
-                        <li>2. ${question.options[1]}</li>
-                        <li>3. ${question.options[2]}</li>
-                        <li>4. ${question.options[3]}</li>
-                    </ul>
-                    <span>正解: ${question.correct}</span>
-                `;
-                list.appendChild(li);
-            });
-        }
+        window.onload = fetchQuestions;
     </script>
 </body>
 </html>

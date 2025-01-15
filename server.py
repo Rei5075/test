@@ -24,26 +24,21 @@ app.add_middleware(
 
 
 # データベースの初期設定を行う関数
-def init_db():
-    # SQLiteデータベースに接続（ファイルが存在しない場合は新規作成）
-    with sqlite3.connect("todos.db") as conn:
-        # TODOを保存するテーブルを作成（すでに存在する場合は作成しない）
-        # 自動増分する一意のID（INTEGER PRIMARY KEY AUTOINCREMENT）
-        # TODOのタイトル（TEXT NOT NULL）
-        # 完了状態（BOOLEAN DEFAULT FALSE）
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS todos (
+def init_questions_db():
+    with sqlite3.connect("questions.db") as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS questions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                completed BOOLEAN DEFAULT FALSE
+                category TEXT NOT NULL,
+                content TEXT NOT NULL,
+                options TEXT NOT NULL,
+                correct INTEGER NOT NULL
             )
-        """
-        )
+        """)
 
 
 # アプリケーション起動時にデータベースを初期化
-init_db()
+init_questions_db()
 
 
 # リクエストボディのデータ構造を定義するクラス
@@ -57,70 +52,29 @@ class TodoResponse(Todo):
     id: int  # TODOのID
 
 
-# クライアント用のHTMLを返すエンドポイント
-@app.get("/", response_class=HTMLResponse)
-def read_root():
-    with open("client.html", "r", encoding="utf-8") as f:
-        return f.read()
-
-
-# 新規TODOを作成するエンドポイント
-@app.post("/todos", response_model=TodoResponse)
-def create_todo(todo: Todo):
-    with sqlite3.connect("todos.db") as conn:
+@app.post("/questions")
+def add_question(question: dict):
+    options_str = "|".join(question["options"])
+    with sqlite3.connect("questions.db") as conn:
         cursor = conn.execute(
-            # SQLインジェクション対策のためパラメータ化したSQL文を使用
-            "INSERT INTO todos (title, completed) VALUES (?, ?)",
-            (todo.title, todo.completed),
+            "INSERT INTO questions (category, content, options, correct) VALUES (?, ?, ?, ?)",
+            (question["category"], question["content"], options_str, question["correct"])
         )
-        todo_id = cursor.lastrowid  # 新しく作成されたTODOのIDを取得
-        return {"id": todo_id, "title": todo.title, "completed": todo.completed}
+        return {"id": cursor.lastrowid, "message": "Question added successfully"}
 
-
-# 全てのTODOを取得するエンドポイント
-@app.get("/todos")
-def get_todos():
-    with sqlite3.connect("todos.db") as conn:
-        todos = conn.execute("SELECT * FROM todos").fetchall()  # 全てのTODOを取得
-        # データベースから取得したタプルをJSON形式に変換して返す
-        return [{"id": t[0], "title": t[1], "completed": bool(t[2])} for t in todos]
-
-
-# 指定されたIDのTODOを取得するエンドポイント
-@app.get("/todos/{todo_id}")
-def get_todo(todo_id: int):
-    with sqlite3.connect("todos.db") as conn:
-        # 指定されたIDのTODOを検索
-        todo = conn.execute(
-            "SELECT * FROM todos WHERE id = ?", (todo_id,)).fetchone()
-        if not todo:  # TODOが見つからない場合は404エラーを返す
-            raise HTTPException(status_code=404, detail="Todo not found")
-        return {"id": todo[0], "title": todo[1], "completed": bool(todo[2])}
-
-
-# 指定されたIDのTODOを更新するエンドポイント
-@app.put("/todos/{todo_id}")
-def update_todo(todo_id: int, todo: Todo):
-    with sqlite3.connect("todos.db") as conn:
-        # タイトルと完了状態を更新
-        cursor = conn.execute(
-            "UPDATE todos SET title = ?, completed = ? WHERE id = ?",
-            (todo.title, todo.completed, todo_id),
-        )
-        if cursor.rowcount == 0:  # 更新対象のTODOが存在しない場合は404エラーを返す
-            raise HTTPException(status_code=404, detail="Todo not found")
-        return {"id": todo_id, "title": todo.title, "completed": todo.completed}
-
-
-# 指定されたIDのTODOを削除するエンドポイント
-@app.delete("/todos/{todo_id}")
-def delete_todo(todo_id: int):
-    with sqlite3.connect("todos.db") as conn:
-        # 指定されたIDのTODOを削除
-        cursor = conn.execute("DELETE FROM todos WHERE id = ?", (todo_id,))
-        if cursor.rowcount == 0:  # 削除対象のTODOが存在しない場合は404エラーを返す
-            raise HTTPException(status_code=404, detail="Todo not found")
-        return {"message": "Todo deleted"}
+@app.get("/questions")
+def get_questions():
+    with sqlite3.connect("questions.db") as conn:
+        rows = conn.execute("SELECT * FROM questions").fetchall()
+        return [
+            {
+                "id": row[0],
+                "category": row[1],
+                "content": row[2],
+                "options": row[3].split("|"),
+                "correct": row[4]
+            } for row in rows
+        ]
 
 
 if __name__ == "__main__":
