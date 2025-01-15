@@ -52,6 +52,13 @@ class TodoResponse(Todo):
     id: int  # TODOのID
 
 
+# クライアント用のHTMLを返すエンドポイント
+@app.get("/", response_class=HTMLResponse)
+def read_root():
+    with open("client.html", "r", encoding="utf-8") as f:
+        return f.read()
+
+
 @app.post("/questions")
 def add_question(question: dict):
     options_str = "|".join(question["options"])
